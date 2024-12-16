@@ -17,6 +17,7 @@ class RetrieveThenReadApproach(Approach):
     (answer) with that prompt.
     """
 
+    # TASK: prompt engineer
     system_chat_template = (
         "You are an intelligent assistant helping Contoso Inc employees with their healthcare plan questions and employee handbook questions. "
         + "Use 'you' to refer to the individual asking the questions even if they ask with 'I'. "
@@ -46,7 +47,8 @@ info4.pdf: In-network institutions include Overlake, Swedish and others in the r
         chatgpt_model: str,
         chatgpt_deployment: Optional[str],  # Not needed for non-Azure OpenAI
         embedding_model: str,
-        embedding_deployment: Optional[str],  # Not needed for non-Azure OpenAI or for retrieval_mode="text"
+        # Not needed for non-Azure OpenAI or for retrieval_mode="text"
+        embedding_deployment: Optional[str],
         embedding_dimensions: int,
         sourcepage_field: str,
         content_field: str,
@@ -66,7 +68,8 @@ info4.pdf: In-network institutions include Overlake, Swedish and others in the r
         self.content_field = content_field
         self.query_language = query_language
         self.query_speller = query_speller
-        self.chatgpt_token_limit = get_token_limit(chatgpt_model, self.ALLOW_NON_GPT_MODELS)
+        self.chatgpt_token_limit = get_token_limit(
+            chatgpt_model, self.ALLOW_NON_GPT_MODELS)
 
     async def run(
         self,
@@ -76,14 +79,19 @@ info4.pdf: In-network institutions include Overlake, Swedish and others in the r
     ) -> dict[str, Any]:
         q = messages[-1]["content"]
         if not isinstance(q, str):
-            raise ValueError("The most recent message content must be a string.")
+            raise ValueError(
+                "The most recent message content must be a string.")
         overrides = context.get("overrides", {})
         seed = overrides.get("seed", None)
         auth_claims = context.get("auth_claims", {})
-        use_text_search = overrides.get("retrieval_mode") in ["text", "hybrid", None]
-        use_vector_search = overrides.get("retrieval_mode") in ["vectors", "hybrid", None]
-        use_semantic_ranker = True if overrides.get("semantic_ranker") else False
-        use_semantic_captions = True if overrides.get("semantic_captions") else False
+        use_text_search = overrides.get("retrieval_mode") in [
+            "text", "hybrid", None]
+        use_vector_search = overrides.get("retrieval_mode") in [
+            "vectors", "hybrid", None]
+        use_semantic_ranker = True if overrides.get(
+            "semantic_ranker") else False
+        use_semantic_captions = True if overrides.get(
+            "semantic_captions") else False
         top = overrides.get("top", 3)
         minimum_search_score = overrides.get("minimum_search_score", 0.0)
         minimum_reranker_score = overrides.get("minimum_reranker_score", 0.0)
@@ -108,7 +116,8 @@ info4.pdf: In-network institutions include Overlake, Swedish and others in the r
         )
 
         # Process results
-        sources_content = self.get_sources_content(results, use_semantic_captions, use_image_citation=False)
+        sources_content = self.get_sources_content(
+            results, use_semantic_captions, use_image_citation=False)
 
         # Append user message
         content = "\n".join(sources_content)
@@ -117,8 +126,10 @@ info4.pdf: In-network institutions include Overlake, Swedish and others in the r
         response_token_limit = 1024
         updated_messages = build_messages(
             model=self.chatgpt_model,
-            system_prompt=overrides.get("prompt_template", self.system_chat_template),
-            few_shots=[{"role": "user", "content": self.question}, {"role": "assistant", "content": self.answer}],
+            system_prompt=overrides.get(
+                "prompt_template", self.system_chat_template),
+            few_shots=[{"role": "user", "content": self.question},
+                       {"role": "assistant", "content": self.answer}],
             new_user_content=user_content,
             max_tokens=self.chatgpt_token_limit - response_token_limit,
             fallback_to_default=self.ALLOW_NON_GPT_MODELS,
@@ -158,7 +169,8 @@ info4.pdf: In-network institutions include Overlake, Swedish and others in the r
                     "Prompt to generate answer",
                     updated_messages,
                     (
-                        {"model": self.chatgpt_model, "deployment": self.chatgpt_deployment}
+                        {"model": self.chatgpt_model,
+                            "deployment": self.chatgpt_deployment}
                         if self.chatgpt_deployment
                         else {"model": self.chatgpt_model}
                     ),

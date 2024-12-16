@@ -14,7 +14,7 @@ from approaches.approach import Approach, ThoughtStep
 from core.authentication import AuthenticationHelper
 from core.imageshelper import fetch_image
 
-
+# TASK: prompt engineer
 class RetrieveThenReadVisionApproach(Approach):
     """
     Simple retrieve-then-read implementation, using the AI Search and OpenAI APIs directly. It first retrieves
@@ -23,7 +23,8 @@ class RetrieveThenReadVisionApproach(Approach):
     """
 
     system_chat_template_gpt4v = (
-        "You are an intelligent assistant helping analyze the Annual Financial Report of Contoso Ltd., The documents contain text, graphs, tables and images. "
+        "You are a helpful assistant acting as a strategic consultant, delivering insights with the rigor and clarity expected from top-tier consulting firms (e.g., Bain, McKinsey, BCG) and the analytical depth of Harvard/MIT-trained professionals.\n\nProvide data-driven, structured outputs tailored to the user’s input, ensuring professional, actionable insights.\n\nTone and Style:\n- **Analytical**: Emphasize precision and detail.\n- **Professional**: Maintain a structured, logical approach aligned with elite consulting standards.\n- **Evidence-Based**: Rely exclusively on provided data or user inputs unless explicitly directed to hypothesize or interpret.\n- **Concise and Clear**: Present insights in a digestible format, avoiding unnecessary jargon.\n\n# Framework Flexibility\nDynamically apply or adapt frameworks to align with the user’s strategic objectives. Examples include:\n- Porter’s Five Forces\n- SWOT Analysis\n- PESTEL Analysis\n- Value Chain Analysis\n- Blue Ocean Strategy\n\nCombine or customize frameworks when required to suit the context.\n\n# Data-Driven Analysis\n- **Data Extraction**: Reference specific file names, sections, and page numbers when citing data. Highlight missing or ambiguous data and flag areas requiring clarification.\n- **Evidence-Backed Insights**: Quantify and justify conclusions using data points (e.g., market share, utilization rates, competitive positioning). Avoid assumptions unless explicitly requested.\n- **Error-Free Handling**: Cross-check inputs for inconsistencies or gaps, providing clear explanations when issues arise.\n\n# Delivery Format\n- **Bullet Points**: Use clear and structured formatting.\n- **Transparency**: Link all conclusions directly to the data or user-provided context.\n- **Action-Oriented**: Highlight risks, opportunities, and strategic recommendations. Provide summaries for quick understanding and detailed breakdowns for deeper analysis.\n- **Professional Styling**: Include headings, subheadings, and numbered lists for easy navigation.\n\n# Adaptability\nContinuously respond to evolving user inputs, updating analysis or frameworks as needed. Proactively seek clarification if objectives are ambiguous or data is incomplete.\n\n# Key Focus Areas\n- **Strategic Insights**: Deliver actionable recommendations based on rigorous analysis.\n- **Opportunities & Risks**: Explicitly identify and prioritize these for decision-making.\n- **Industry Context**: Integrate relevant trends, market dynamics, and competitive intelligence to enhance the analysisThe documents contain text, graphs, tables and images. "
+
         + "Each image source has the file name in the top left corner of the image with coordinates (10,10) pixels and is in the format SourceFileName:<file_name> "
         + "Each text source starts in a new line and has the file name followed by colon and the actual information "
         + "Always include the source name from the image or text for each fact you use in the response in the format: [filename] "
@@ -41,7 +42,8 @@ class RetrieveThenReadVisionApproach(Approach):
         auth_helper: AuthenticationHelper,
         gpt4v_deployment: Optional[str],
         gpt4v_model: str,
-        embedding_deployment: Optional[str],  # Not needed for non-Azure OpenAI or for retrieval_mode="text"
+        # Not needed for non-Azure OpenAI or for retrieval_mode="text"
+        embedding_deployment: Optional[str],
         embedding_model: str,
         embedding_dimensions: int,
         sourcepage_field: str,
@@ -66,7 +68,8 @@ class RetrieveThenReadVisionApproach(Approach):
         self.query_speller = query_speller
         self.vision_endpoint = vision_endpoint
         self.vision_token_provider = vision_token_provider
-        self.gpt4v_token_limit = get_token_limit(gpt4v_model, self.ALLOW_NON_GPT_MODELS)
+        self.gpt4v_token_limit = get_token_limit(
+            gpt4v_model, self.ALLOW_NON_GPT_MODELS)
 
     async def run(
         self,
@@ -76,23 +79,30 @@ class RetrieveThenReadVisionApproach(Approach):
     ) -> dict[str, Any]:
         q = messages[-1]["content"]
         if not isinstance(q, str):
-            raise ValueError("The most recent message content must be a string.")
+            raise ValueError(
+                "The most recent message content must be a string.")
 
         overrides = context.get("overrides", {})
         seed = overrides.get("seed", None)
         auth_claims = context.get("auth_claims", {})
-        use_text_search = overrides.get("retrieval_mode") in ["text", "hybrid", None]
-        use_vector_search = overrides.get("retrieval_mode") in ["vectors", "hybrid", None]
-        use_semantic_ranker = True if overrides.get("semantic_ranker") else False
-        use_semantic_captions = True if overrides.get("semantic_captions") else False
+        use_text_search = overrides.get("retrieval_mode") in [
+            "text", "hybrid", None]
+        use_vector_search = overrides.get("retrieval_mode") in [
+            "vectors", "hybrid", None]
+        use_semantic_ranker = True if overrides.get(
+            "semantic_ranker") else False
+        use_semantic_captions = True if overrides.get(
+            "semantic_captions") else False
         top = overrides.get("top", 3)
         minimum_search_score = overrides.get("minimum_search_score", 0.0)
         minimum_reranker_score = overrides.get("minimum_reranker_score", 0.0)
         filter = self.build_filter(overrides, auth_claims)
 
         vector_fields = overrides.get("vector_fields", ["embedding"])
-        send_text_to_gptvision = overrides.get("gpt4v_input") in ["textAndImages", "texts", None]
-        send_images_to_gptvision = overrides.get("gpt4v_input") in ["textAndImages", "images", None]
+        send_text_to_gptvision = overrides.get("gpt4v_input") in [
+            "textAndImages", "texts", None]
+        send_images_to_gptvision = overrides.get("gpt4v_input") in [
+            "textAndImages", "images", None]
 
         # If retrieval mode includes vectors, compute an embedding for the query
         vectors = []
@@ -119,10 +129,12 @@ class RetrieveThenReadVisionApproach(Approach):
         )
 
         image_list: list[ChatCompletionContentPartImageParam] = []
-        user_content: list[ChatCompletionContentPartParam] = [{"text": q, "type": "text"}]
+        user_content: list[ChatCompletionContentPartParam] = [
+            {"text": q, "type": "text"}]
 
         # Process results
-        sources_content = self.get_sources_content(results, use_semantic_captions, use_image_citation=True)
+        sources_content = self.get_sources_content(
+            results, use_semantic_captions, use_image_citation=True)
 
         if send_text_to_gptvision:
             content = "\n".join(sources_content)
@@ -137,7 +149,8 @@ class RetrieveThenReadVisionApproach(Approach):
         response_token_limit = 1024
         updated_messages = build_messages(
             model=self.gpt4v_model,
-            system_prompt=overrides.get("prompt_template", self.system_chat_template_gpt4v),
+            system_prompt=overrides.get(
+                "prompt_template", self.system_chat_template_gpt4v),
             new_user_content=user_content,
             max_tokens=self.gpt4v_token_limit - response_token_limit,
             fallback_to_default=self.ALLOW_NON_GPT_MODELS,
@@ -180,7 +193,8 @@ class RetrieveThenReadVisionApproach(Approach):
                     "Prompt to generate answer",
                     updated_messages,
                     (
-                        {"model": self.gpt4v_model, "deployment": self.gpt4v_deployment}
+                        {"model": self.gpt4v_model,
+                            "deployment": self.gpt4v_deployment}
                         if self.gpt4v_deployment
                         else {"model": self.gpt4v_model}
                     ),

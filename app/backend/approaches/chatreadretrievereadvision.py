@@ -36,7 +36,8 @@ class ChatReadRetrieveReadVisionApproach(ChatApproach):
         chatgpt_deployment: Optional[str],  # Not needed for non-Azure OpenAI
         gpt4v_deployment: Optional[str],  # Not needed for non-Azure OpenAI
         gpt4v_model: str,
-        embedding_deployment: Optional[str],  # Not needed for non-Azure OpenAI or for retrieval_mode="text"
+        # Not needed for non-Azure OpenAI or for retrieval_mode="text"
+        embedding_deployment: Optional[str],
         embedding_model: str,
         embedding_dimensions: int,
         sourcepage_field: str,
@@ -63,12 +64,16 @@ class ChatReadRetrieveReadVisionApproach(ChatApproach):
         self.query_speller = query_speller
         self.vision_endpoint = vision_endpoint
         self.vision_token_provider = vision_token_provider
-        self.chatgpt_token_limit = get_token_limit(gpt4v_model, default_to_minimum=self.ALLOW_NON_GPT_MODELS)
+        self.chatgpt_token_limit = get_token_limit(
+            gpt4v_model, default_to_minimum=self.ALLOW_NON_GPT_MODELS)
 
+    # TASK: prompt engineer
     @property
     def system_message_chat_conversation(self):
         return """
-        You are an intelligent assistant helping analyze the Annual Financial Report of Contoso Ltd., The documents contain text, graphs, tables and images.
+        You are a helpful assistant acting as a strategic consultant, delivering insights with the rigor and clarity expected from top-tier consulting firms (e.g., Bain, McKinsey, BCG) and the analytical depth of Harvard/MIT-trained professionals.\n\nProvide data-driven, structured outputs tailored to the user’s input, ensuring professional, actionable insights.\n\nTone and Style:\n- **Analytical**: Emphasize precision and detail.\n- **Professional**: Maintain a structured, logical approach aligned with elite consulting standards.\n- **Evidence-Based**: Rely exclusively on provided data or user inputs unless explicitly directed to hypothesize or interpret.\n- **Concise and Clear**: Present insights in a digestible format, avoiding unnecessary jargon.\n\n# Framework Flexibility\nDynamically apply or adapt frameworks to align with the user’s strategic objectives. Examples include:\n- Porter’s Five Forces\n- SWOT Analysis\n- PESTEL Analysis\n- Value Chain Analysis\n- Blue Ocean Strategy\n\nCombine or customize frameworks when required to suit the context.\n\n# Data-Driven Analysis\n- **Data Extraction**: Reference specific file names, sections, and page numbers when citing data. Highlight missing or ambiguous data and flag areas requiring clarification.\n- **Evidence-Backed Insights**: Quantify and justify conclusions using data points (e.g., market share, utilization rates, competitive positioning). Avoid assumptions unless explicitly requested.\n- **Error-Free Handling**: Cross-check inputs for inconsistencies or gaps, providing clear explanations when issues arise.\n\n# Delivery Format\n- **Bullet Points**: Use clear and structured formatting.\n- **Transparency**: Link all conclusions directly to the data or user-provided context.\n- **Action-Oriented**: Highlight risks, opportunities, and strategic recommendations. Provide summaries for quick understanding and detailed breakdowns for deeper analysis.\n- **Professional Styling**: Include headings, subheadings, and numbered lists for easy navigation.\n\n# Adaptability\nContinuously respond to evolving user inputs, updating analysis or frameworks as needed. Proactively seek clarification if objectives are ambiguous or data is incomplete.\n\n# Key Focus Areas\n- **Strategic Insights**: Deliver actionable recommendations based on rigorous analysis.\n- **Opportunities & Risks**: Explicitly identify and prioritize these for decision-making.\n- **Industry Context**: Integrate relevant trends, market dynamics, and competitive intelligence to enhance the analysis
+        
+        You are an intelligent assistant helping analyze the documents contain text, graphs, tables and images.
         Each image source has the file name in the top left corner of the image with coordinates (10,10) pixels and is in the format SourceFileName:<file_name>
         Each text source starts in a new line and has the file name followed by colon and the actual information
         Always include the source name from the image or text for each fact you use in the response in the format: [filename]
@@ -89,22 +94,29 @@ class ChatReadRetrieveReadVisionApproach(ChatApproach):
         should_stream: bool = False,
     ) -> tuple[dict[str, Any], Coroutine[Any, Any, Union[ChatCompletion, AsyncStream[ChatCompletionChunk]]]]:
         seed = overrides.get("seed", None)
-        use_text_search = overrides.get("retrieval_mode") in ["text", "hybrid", None]
-        use_vector_search = overrides.get("retrieval_mode") in ["vectors", "hybrid", None]
-        use_semantic_ranker = True if overrides.get("semantic_ranker") else False
-        use_semantic_captions = True if overrides.get("semantic_captions") else False
+        use_text_search = overrides.get("retrieval_mode") in [
+            "text", "hybrid", None]
+        use_vector_search = overrides.get("retrieval_mode") in [
+            "vectors", "hybrid", None]
+        use_semantic_ranker = True if overrides.get(
+            "semantic_ranker") else False
+        use_semantic_captions = True if overrides.get(
+            "semantic_captions") else False
         top = overrides.get("top", 3)
         minimum_search_score = overrides.get("minimum_search_score", 0.0)
         minimum_reranker_score = overrides.get("minimum_reranker_score", 0.0)
         filter = self.build_filter(overrides, auth_claims)
 
         vector_fields = overrides.get("vector_fields", ["embedding"])
-        send_text_to_gptvision = overrides.get("gpt4v_input") in ["textAndImages", "texts", None]
-        send_images_to_gptvision = overrides.get("gpt4v_input") in ["textAndImages", "images", None]
+        send_text_to_gptvision = overrides.get("gpt4v_input") in [
+            "textAndImages", "texts", None]
+        send_images_to_gptvision = overrides.get("gpt4v_input") in [
+            "textAndImages", "images", None]
 
         original_user_query = messages[-1]["content"]
         if not isinstance(original_user_query, str):
-            raise ValueError("The most recent message content must be a string.")
+            raise ValueError(
+                "The most recent message content must be a string.")
         past_messages: list[ChatCompletionMessageParam] = messages[:-1]
 
         # STEP 1: Generate an optimized keyword search query based on the chat history and the last question
@@ -131,7 +143,8 @@ class ChatReadRetrieveReadVisionApproach(ChatApproach):
             seed=seed,
         )
 
-        query_text = self.get_search_query(chat_completion, original_user_query)
+        query_text = self.get_search_query(
+            chat_completion, original_user_query)
 
         # STEP 2: Retrieve relevant documents from the search index with the GPT optimized query
 
@@ -158,7 +171,8 @@ class ChatReadRetrieveReadVisionApproach(ChatApproach):
             minimum_search_score,
             minimum_reranker_score,
         )
-        sources_content = self.get_sources_content(results, use_semantic_captions, use_image_citation=True)
+        sources_content = self.get_sources_content(
+            results, use_semantic_captions, use_image_citation=True)
         content = "\n".join(sources_content)
 
         # STEP 3: Generate a contextual and content specific answer using the search results and chat history
@@ -166,14 +180,17 @@ class ChatReadRetrieveReadVisionApproach(ChatApproach):
         # Allow client to replace the entire prompt, or to inject into the existing prompt using >>>
         system_message = self.get_system_prompt(
             overrides.get("prompt_template"),
-            self.follow_up_questions_prompt_content if overrides.get("suggest_followup_questions") else "",
+            self.follow_up_questions_prompt_content if overrides.get(
+                "suggest_followup_questions") else "",
         )
 
-        user_content: list[ChatCompletionContentPartParam] = [{"text": original_user_query, "type": "text"}]
+        user_content: list[ChatCompletionContentPartParam] = [
+            {"text": original_user_query, "type": "text"}]
         image_list: list[ChatCompletionContentPartImageParam] = []
 
         if send_text_to_gptvision:
-            user_content.append({"text": "\n\nSources:\n" + content, "type": "text"})
+            user_content.append(
+                {"text": "\n\nSources:\n" + content, "type": "text"})
         if send_images_to_gptvision:
             for result in results:
                 url = await fetch_image(self.blob_container_client, result)
@@ -228,7 +245,8 @@ class ChatReadRetrieveReadVisionApproach(ChatApproach):
                     "Prompt to generate answer",
                     messages,
                     (
-                        {"model": self.gpt4v_model, "deployment": self.gpt4v_deployment}
+                        {"model": self.gpt4v_model,
+                            "deployment": self.gpt4v_deployment}
                         if self.gpt4v_deployment
                         else {"model": self.gpt4v_model}
                     ),
